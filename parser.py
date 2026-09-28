@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import json
+from service1_reminder import create_reminder
 
 load_dotenv()
 LLM_API = os.getenv("LLM_API")
@@ -25,14 +26,34 @@ def get_current_time():
 
 MAX_TOOL_CALLS=5
 
-TOOLS = [{
-    "type":"function",
-    "function":{
-        "name": "get_current_time",
-        "description": "Returns the current local date, time, weekday and timezone"
+TOOLS = [
+    {
+        "type":"function",
+        "function":
+            {
+                "name": "get_current_time",
+                "description": "Returns the current local date, time, weekday and timezone"
+            }
+    },
+    {
+        "type":"function",
+        "function":{
+            "name": "create_reminder",
+            "description": "Creates a new reminder for the user",
+            "parameters":{
+                "type": "object",
+                "properties": {
+                    "reminder_title":{"type": "string","description": "title of what the reminder is about"},
+                    "remind_at":{"type": "string","description": "reminder time as local ISO format YYYY-MM-DDTHH:MM:SS with no timezone mentioned"},
+                    "recurring_type":{"type": "string","enum":["NA", "daily", "days"],"description": "how the reminder should be repeated, NA for non repeating reminders"}, # weekly and monthly later
+                    "recurring_days":{"type": "string","description": "use this only when recurring type id days, replky with mon,wed,thur"},
+                    "end_date":{"type": "string","description": "use this only when recurring type reminders, reply with the end date of the reminder as local ISO format"}
+                },
+                "required": ["reminder_title", "remind_at"]
+            }
+        }
     }
-
-}]
+]
 
 def build_history(history, user_input):
     messages=[{"role": "system", "content": SYSTEM_PROMPT},]
@@ -44,6 +65,8 @@ def build_history(history, user_input):
 def run_tools(name, args, user_id, user_message):
     if name == "get_current_time":
         return get_current_time()
+    elif name == "create_reminder":
+        return create_reminder(user_id, user_message, **args)
     else:
         return {"error": "Unknown tool"}
     
@@ -83,7 +106,7 @@ def call_llm(history, user_input, USER_ID):
             result = run_tools(tool_call.function.name, args, USER_ID, user_input)
 
             messages.append({"role": "tool","tool_call_id": tool_call.id,"content": json.dumps(result)})
-
-        print(messages)    
+        i+=1
+    print(messages)    
 
     return "used tools"
