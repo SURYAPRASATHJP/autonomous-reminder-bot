@@ -13,7 +13,11 @@ TIME_ZONE = os.getenv("TIME_ZONE")
 
 SYSTEM_PROMPT = """you are a friendly reminder assistant, keep replies short and to the point. if the user goes off topic from setting a reminder, YOU MUST ALWAYS write a final text response, never leave your message blank. 
 gently remind them that you are reminder bot and whatever they asking is outside your scope. never assume a date or time even if the user gives you the current time.
-call get_current_time() function to get the current time,weekday and timezone info and use it when the user talk about reminders, or when data or time comes up, and also when the user requests you to create, list, or cancel a reminder."""
+call get_current_time() function to get the current time,weekday and timezone info and use it when the user talk about reminders, or when data or time comes up, and also when the user requests you to create, list, or cancel a reminder.
+
+RULES:
+1. When you call a tool dont explain your thought process, just call the tool.
+2. Only write a reply to the question and nothing about the tool call."""
 
 def get_current_time():
     now= datetime.now(ZoneInfo(TIME_ZONE))
@@ -36,8 +40,14 @@ def build_history(history, user_input):
         messages.append({"role": message["role"], "content": message["content"]})
     messages.append({"role": "user", "content": user_input})
     return messages
+
+def run_tools(name, args, user_id, user_message):
+    if name == "get_current_time":
+        return get_current_time()
+    else:
+        return {"error": "Unknown tool"}
     
-def call_llm(history, user_input,USER_ID):
+def call_llm(history, user_input, USER_ID):
 
     client = OpenAI(
         base_url = "https://integrate.api.nvidia.com/v1",
@@ -69,11 +79,8 @@ def call_llm(history, user_input,USER_ID):
                 args = json.loads(tool_call.function.arguments or "{}")
             except json.JSONDecodeError:
                 args = {}
-
-            if tool_call.function.name == "get_current_time":
-                result = get_current_time()
-            else:
-                result = {"error": "Unknown tool"}
+            
+            result = run_tools(tool_call.function.name, args, USER_ID, user_input)
 
             messages.append({"role": "tool","tool_call_id": tool_call.id,"content": json.dumps(result)})
 
