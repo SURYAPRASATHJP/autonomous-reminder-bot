@@ -182,7 +182,7 @@ def update_reminder(user_id, reminder_id, title=None, remind_at=None, recurring_
             
         updates.append("updated_at = NOW()")
         
-        query = f"UPDATE reminders SET {', '.join(updates)} WHERE id = %s AND user_id = %s RETURNING id"
+        query = f"UPDATE reminders SET {', '.join(updates)} WHERE id = %s AND status = 'pending' AND user_id = %s RETURNING id"
         params.extend([reminder_id, user_id])
         
         conn = get_db_connection()
