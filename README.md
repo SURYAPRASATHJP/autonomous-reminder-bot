@@ -6,7 +6,7 @@ The agent can use tools now. it can get current time and create reminders.
 
 Reminders are being saved in the postgres database.
 
-Reminders can be fetched from the database and displayed in the streamlit UI.
+Reminders can be fetched, update, deleted, canceled from the database.
 
 
 

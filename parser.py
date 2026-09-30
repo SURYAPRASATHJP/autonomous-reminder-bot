@@ -8,7 +8,7 @@ import logging
 import random
 import time
 import json
-from service1_reminder import create_reminder, list_reminders
+from service1_reminder import create_reminder, list_reminders, delete_reminder, update_reminder
 
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -67,16 +67,52 @@ TOOLS = [
     {
         "type":"function",
         "name": "list_reminders",
-        "description": "Lists all reminders for the user",
+        "description": "Lists the user's upcoming pending reminders, soonest first, up to 20. Cancelled and already sent reminders are not included",
         "parameters":{
             "type": "object",
             "properties": {
-                "user_id":{"type": "string","description": "user id of the user who wants to list their reminders"
+            }
+        }
+    },
+    {
+        "type": "function",
+        "name": "delete_reminder",
+        "description": "Deletes an already set reminder by its id",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "reminder_id": {"type": "integer","description": "the integer ID of the reminder to delete"
                 }
             },
-            "required": ["user_id"]
+            "required": ["reminder_id"]
+        }
+    },
+    {
+        "type": "function",
+        "name": "update_reminder",
+        "description": "Updates an existing reminder.Use this to cancel reminders, Only provide the fields that need to be changed",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "reminder_id": {"type": "integer","description": "the integer ID of the reminder to update"
+                },
+                "title": {"type": "string","description": "new title of the reminder"
+                },
+                "remind_at": {"type": "string","description": "new reminder time as local ISO format YYYY-MM-DDTHH:MM:SS with no timezone mentioned"
+                },
+                "recurring_type": {"type": "string","enum": ["NA", "daily", "days"],"description": "how the reminder should be repeated, NA for non repeating reminders"
+                },
+                "recurring_days": {"type": "string","description": "use this only when recurring type is days, reply with mon,wed,thur"
+                },
+                "end_date": {"type": "string","description": "use this only when recurring type reminders, reply with the end date of the reminder as local ISO format"
+                },
+                "status": {"type": "string","enum": ["pending", "cancelled"],"description": "the new status of the reminder (e.g., set to 'cancelled' to stop it)"
+                }
+            },
+            "required": ["reminder_id"]
         }
     }
+
 ]
 
 def build_history(history, user_input):
@@ -93,6 +129,10 @@ def run_tools(name, args, user_id, user_message):
         return create_reminder(user_id, user_message, **args)
     elif name == "list_reminders":
         return list_reminders(user_id)
+    elif name == "delete_reminder":
+        return delete_reminder(user_id, **args)
+    elif name == "update_reminder":
+        return update_reminder(user_id, **args)
     else:
         return {"error": "Unknown tool"}
 

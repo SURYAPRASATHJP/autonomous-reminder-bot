@@ -57,12 +57,10 @@ def create_reminder(user_id, user_request, title, remind_at, recurring_type="NA"
         conn.commit()
         return {"ok": True, "reminder_id": reminder_id, "first_run": utc_to_local_str(remind_at_in_utc, TIME_ZONE)}
 
-    # conn= None skips as there was no connection in the first place
     except (Exception) as error:
         if conn:
             conn.rollback()
         return {"ok": False, "error": str(error)}
-    # conn= None skips as there was no connection in the first place again lol
     finally:
         if conn:
             conn.close()
@@ -75,7 +73,7 @@ def list_reminders(user_id):
         cur= conn.cursor()
 
         query= '''
-        SELECT id, title, user_request, remind_at, timezone, is_recurring, recurring_type, recurring_days, end_date FROM reminders WHERE user_id= %s
+        SELECT id, title, user_request, next_run_at, timezone, is_recurring, recurring_type, recurring_days, end_date FROM reminders WHERE user_id= %s AND status= 'pending' ORDER BY next_run_at LIMIT 20
         '''
 
         cur.execute(query, (user_id,))
@@ -87,7 +85,7 @@ def list_reminders(user_id):
                 "id": row[0],
                 "title": row[1],
                 "user_request": row[2],
-                "remind_at": utc_to_local_str(row[3], row[4]),
+                "next_run": utc_to_local_str(row[3], row[4]),
                 "is_recurring": row[5],
                 "recurring_type": row[6],
                 "recurring_days": row[7],
@@ -97,6 +95,111 @@ def list_reminders(user_id):
 
         return {"ok": True, "reminders": reminders}
     except (Exception) as error:
+        return {"ok": False, "error": str(error)}
+    finally:
+        if conn:
+            conn.close()
+    
+def delete_reminder(user_id, reminder_id):
+    conn= None
+
+    try:
+        conn= get_db_connection()
+        cur= conn.cursor()
+
+        query= '''
+        DELETE FROM reminders WHERE user_id= %s AND id= %s AND status = 'pending' RETURNING id
+        '''
+
+        cur.execute(query, (user_id, reminder_id))
+
+        deleted_reminder_id= cur.fetchone()
+
+        conn.commit()
+
+        if deleted_reminder_id:
+            return {"ok": True, "message": f"Reminder {deleted_reminder_id} deleted sucessfully"}
+        else:
+            return {"ok": False, "error": f"No reminder found with the given id{deleted_reminder_id}"}
+
+    except (Exception) as error:
+        if conn:
+            conn.rollback()
+        return {"ok": False, "error": str(error)}
+    
+    finally:
+        if conn:
+            conn.close()
+
+def update_reminder(user_id, reminder_id, title=None, remind_at=None, recurring_type=None, recurring_days=None, end_date=None, status=None):
+    conn= None
+
+    try:
+        updates = []
+        params = []
+        
+        if title is not None:
+            updates.append("title = %s")
+            params.append(title)
+            
+        if remind_at is not None:
+            try:
+                remind_at_utc = local_str_to_utc(remind_at, TIME_ZONE)
+                updates.append("remind_at = %s")
+                params.append(remind_at_utc)
+                updates.append("next_run_at = %s") 
+                params.append(remind_at_utc)
+            except Exception:
+                return {"ok": False, "error": "remind_at is not a valid date and time."}
+                
+        if recurring_type is not None:
+            updates.append("recurring_type = %s")
+            params.append(recurring_type)
+            updates.append("is_recurring = %s")
+            params.append(recurring_type != "NA")
+            if recurring_type != 'days':
+                updates.append("recurring_days = NULL")
+                recurring_days = None
+            
+        if recurring_days is not None:
+            updates.append("recurring_days = %s")
+            params.append(recurring_days)
+            
+        if end_date is not None:
+            try:
+                end_date_utc = local_str_to_utc(end_date, TIME_ZONE)
+                updates.append("end_date = %s")
+                params.append(end_date_utc)
+            except Exception:
+                return {"ok": False, "error": "end_date is not a valid date and time."}
+                
+        if status is not None:
+            updates.append("status = %s")
+            params.append(status)
+            
+        if not updates:
+            return {"ok": False, "error": "No fields provided to update."}
+            
+        updates.append("updated_at = NOW()")
+        
+        query = f"UPDATE reminders SET {', '.join(updates)} WHERE id = %s AND user_id = %s RETURNING id"
+        params.extend([reminder_id, user_id])
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(query, tuple(params))
+        
+        updated_row = cur.fetchone()
+        conn.commit()
+        
+        if updated_row:
+            return {"ok": True, "message": f"Reminder {reminder_id} updated successfully."}
+        else:
+            return {"ok": False, "error": f"no pending reminders with id{reminder_id}"}
+            
+    except Exception as error:
+        if conn:
+            conn.rollback()
         return {"ok": False, "error": str(error)}
     finally:
         if conn:
