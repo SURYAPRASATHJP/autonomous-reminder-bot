@@ -8,7 +8,7 @@ import logging
 import random
 import time
 import json
-from service1_reminder import create_reminder
+from service1_reminder import create_reminder, list_reminders
 
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -63,6 +63,19 @@ TOOLS = [
             },
             "required": ["title", "remind_at"]
         }
+    },
+    {
+        "type":"function",
+        "name": "list_reminders",
+        "description": "Lists all reminders for the user",
+        "parameters":{
+            "type": "object",
+            "properties": {
+                "user_id":{"type": "string","description": "user id of the user who wants to list their reminders"
+                }
+            },
+            "required": ["user_id"]
+        }
     }
 ]
 
@@ -78,6 +91,8 @@ def run_tools(name, args, user_id, user_message):
         return get_current_time()
     elif name == "create_reminder":
         return create_reminder(user_id, user_message, **args)
+    elif name == "list_reminders":
+        return list_reminders(user_id)
     else:
         return {"error": "Unknown tool"}
 

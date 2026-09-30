@@ -38,7 +38,7 @@ def create_reminder(user_id, user_request, title, remind_at, recurring_type="NA"
         except Exception:
             return {"ok": False, "error": "end_date is not a valid date and time"}
 
-    is_recurring = recurring_type != "none"
+    is_recurring = recurring_type != "NA"
 
     conn= None
 
@@ -63,6 +63,41 @@ def create_reminder(user_id, user_request, title, remind_at, recurring_type="NA"
             conn.rollback()
         return {"ok": False, "error": str(error)}
     # conn= None skips as there was no connection in the first place again lol
+    finally:
+        if conn:
+            conn.close()
+    
+def list_reminders(user_id):
+    conn= None
+
+    try:
+        conn= get_db_connection()
+        cur= conn.cursor()
+
+        query= '''
+        SELECT id, title, user_request, remind_at, timezone, is_recurring, recurring_type, recurring_days, end_date FROM reminders WHERE user_id= %s
+        '''
+
+        cur.execute(query, (user_id,))
+
+        rows= cur.fetchall()
+        reminders= []
+        for row in rows:
+            reminder= {
+                "id": row[0],
+                "title": row[1],
+                "user_request": row[2],
+                "remind_at": utc_to_local_str(row[3], row[4]),
+                "is_recurring": row[5],
+                "recurring_type": row[6],
+                "recurring_days": row[7],
+                "end_date": utc_to_local_str(row[8], row[4])
+            }
+            reminders.append(reminder)
+
+        return {"ok": True, "reminders": reminders}
+    except (Exception) as error:
+        return {"ok": False, "error": str(error)}
     finally:
         if conn:
             conn.close()

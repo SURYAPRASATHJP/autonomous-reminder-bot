@@ -42,7 +42,19 @@ def create_tables():
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         CHECK (recurring_type <> 'days' OR recurring_days IS NOT NULL)
-    );'''
+    );
+    
+        ALTER TABLE reminders ADD COLUMN IF NOT EXISTS attempts INT NOT NULL DEFAULT 0;
+        ALTER TABLE reminders ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
+
+        ALTER TABLE reminders DROP CONSTRAINT IF EXISTS reminders_status_check;
+        ALTER TABLE reminders ADD CONSTRAINT reminders_status_check CHECK (status IN ('pending', 'sent', 'cancelled', 'claimed', 'failed'));
+
+        ALTER TABLE reminders DROP CONSTRAINT IF EXISTS reminders_lease_check;
+        ALTER TABLE reminders ADD CONSTRAINT reminders_lease_check 
+        CHECK ((status = 'claimed' AND locked_until IS NOT NULL) OR (status <> 'claimed' AND locked_until IS NULL));
+
+'''
     # for the persistent connection to fetch pending reminders efficiently every time interval
     index_reminders = "CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders (user_id, status, next_run_at);"
 
