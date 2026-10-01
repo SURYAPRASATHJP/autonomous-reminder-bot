@@ -120,7 +120,7 @@ def delete_reminder(user_id, reminder_id):
         if deleted_reminder_id:
             return {"ok": True, "message": f"Reminder {deleted_reminder_id} deleted sucessfully"}
         else:
-            return {"ok": False, "error": f"No reminder found with the given id{deleted_reminder_id}"}
+            return {"ok": False, "error": f"No reminder found with the given id {reminder_id}"}
 
     except (Exception) as error:
         if conn:
@@ -195,9 +195,57 @@ def update_reminder(user_id, reminder_id, title=None, remind_at=None, recurring_
         if updated_row:
             return {"ok": True, "message": f"Reminder {reminder_id} updated successfully."}
         else:
-            return {"ok": False, "error": f"no pending reminders with id{reminder_id}"}
+            return {"ok": False, "error": f"no pending reminders with id {reminder_id}"}
             
     except Exception as error:
+        if conn:
+            conn.rollback()
+        return {"ok": False, "error": str(error)}
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_unseen_notifications(user_id):
+    conn= None
+
+    try:
+        conn= get_db_connection()
+        cur= conn.cursor()
+
+        query= '''
+        SELECT id, message, created_at FROM notifications WHERE user_id= %s AND seen_at IS NULL ORDER BY created_at LIMIT 20
+        '''
+
+        cur.execute(query, (user_id,))
+
+        rows= cur.fetchall()
+        notifications= [{"id": row[0], "message": row[1], "created_at": row[2]} for row in rows]
+
+        return {"ok": True, "notifications": notifications}
+    except (Exception) as error:
+        return {"ok": False, "error": str(error)}
+    finally:
+        if conn:
+            conn.close()
+
+
+def mark_notifications_seen(notification_ids):
+    conn= None
+
+    try:
+        conn= get_db_connection()
+        cur= conn.cursor()
+
+        query= '''
+        UPDATE notifications SET seen_at = NOW() WHERE id = ANY(%s) AND seen_at IS NULL
+        '''
+
+        cur.execute(query, (notification_ids,))
+        conn.commit()
+
+        return {"ok": True}
+    except (Exception) as error:
         if conn:
             conn.rollback()
         return {"ok": False, "error": str(error)}

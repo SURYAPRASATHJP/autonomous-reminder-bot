@@ -55,6 +55,18 @@ def create_tables():
         CHECK ((status = 'claimed' AND locked_until IS NOT NULL) OR (status <> 'claimed' AND locked_until IS NULL));
 
 '''
+     
+    notifications_table = '''
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            reminder_id INT NOT NULL REFERENCES reminders(id),
+            user_id TEXT NOT NULL,
+            message TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            seen_at TIMESTAMPTZ,
+            UNIQUE (reminder_id)
+        );
+        '''
     # for the persistent connection to fetch pending reminders efficiently every time interval
     index_reminders = "CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders (user_id, status, next_run_at);"
 
@@ -62,6 +74,7 @@ def create_tables():
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(reminders_table)
+        cur.execute(notifications_table)
         cur.execute(index_reminders)
         conn.commit()
         cur.close()
