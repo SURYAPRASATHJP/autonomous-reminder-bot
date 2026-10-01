@@ -1,0 +1,5 @@
+streamlit==1.64.0
+httpx==0.28.1
+python-dotenv==1.2.3
+psycopg2-binary==2.9.13
+tzdata==2025.2 # here so that docker builds work.
