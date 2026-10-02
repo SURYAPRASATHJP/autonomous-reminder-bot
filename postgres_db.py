@@ -64,10 +64,18 @@ def create_tables():
             reminder_id INT NOT NULL REFERENCES reminders(id),
             user_id TEXT NOT NULL,
             message TEXT NOT NULL,
+            run_at TIMESTAMPTZ NOT NULL,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             seen_at TIMESTAMPTZ,
-            UNIQUE (reminder_id)
+            CONSTRAINT notifications_reminder_run_key UNIQUE (reminder_id, run_at)
         );
+
+        ALTER TABLE notifications ADD COLUMN IF NOT EXISTS run_at TIMESTAMPTZ;
+        UPDATE notifications SET run_at = created_at WHERE run_at IS NULL;
+        ALTER TABLE notifications ALTER COLUMN run_at SET NOT NULL;
+        ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_reminder_id_key;
+        ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_reminder_run_key;
+        ALTER TABLE notifications ADD CONSTRAINT notifications_reminder_run_key UNIQUE (reminder_id, run_at);
         '''
     # for the persistent connection to fetch pending reminders efficiently every time interval
     index_reminders = "CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders (user_id, status, next_run_at);"
