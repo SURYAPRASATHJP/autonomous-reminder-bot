@@ -13,7 +13,7 @@ logger = logging.getLogger("poller")
 
 
 BATCH_SIZE = 10
-LEASE_SECONDS = 600
+LEASE_SECONDS = 30
 MAX_ATTEMPTS = 3
 IDLE_SLEEP = 0.5
 ERROR_SLEEP = 1.0
@@ -31,8 +31,8 @@ def claim_batch(conn, n, lease_seconds):
                 updated_at = NOW()
             WHERE id IN (
                 SELECT id FROM reminders
-                WHERE status = 'pending'
-                  AND next_run_at <= NOW()
+                WHERE (status = 'pending' AND next_run_at <= NOW())
+                    OR (status = 'claimed' AND locked_until < NOW())
                 ORDER BY next_run_at ASC
                 LIMIT %s
                 FOR UPDATE SKIP LOCKED
