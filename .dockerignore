@@ -1,0 +1,9 @@
+.env
+.git
+.gitignore
+sunbeam/
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+README.md

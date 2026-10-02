@@ -2,6 +2,7 @@ import argparse
 import logging
 import threading
 import time
+import signal
 
 from postgres_db import get_db_connection
 
@@ -188,10 +189,16 @@ def run(workers=3, deliver_fn=None):
     return threads, stop_event
 
 
+def _handle_sigterm(signum, frame):
+    raise KeyboardInterrupt
+
+
 def main():
     ap = argparse.ArgumentParser(description="Reminder poller: claims due reminders and delivers them to the UI.")
     ap.add_argument("--workers", type=int, default=3, help="number of worker threads (default 3)")
     args = ap.parse_args()
+
+    signal.signal(signal.SIGTERM, _handle_sigterm)# works as control + c but for docker
 
     threads, stop_event = run(workers=args.workers)
     logger.info(f"Poller running with {args.workers} workers. Press Ctrl+C to stop.")
