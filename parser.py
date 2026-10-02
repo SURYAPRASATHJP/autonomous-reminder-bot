@@ -102,7 +102,7 @@ TOOLS = [
                 },
                 "recurring_type": {"type": "string","enum": ["NA", "daily", "days"],"description": "how the reminder should be repeated, NA for non repeating reminders"
                 },
-                "recurring_days": {"type": "string","description": "use this only when recurring type is days, reply with mon,wed,thur"
+                "recurring_days": {"type": "string","description": "use this only when recurring type is days, reply with mon,wed,thu"
                 },
                 "end_date": {"type": "string","description": "use this only when recurring type reminders, reply with the end date of the reminder as local ISO format"
                 },
