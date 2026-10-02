@@ -11,6 +11,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U reminders -d reminders"]
       interval: 5s
       retries: 10
+    restart: unless-stopped
 
   init:
     build: .
@@ -23,9 +24,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    
 
   app:
     image: reminder-bot
+    command: streamlit run app.py --server.address=0.0.0.0
     ports:
       - "8501:8501"
     environment:
@@ -35,6 +38,7 @@ services:
     depends_on:
       init:
         condition: service_completed_successfully
+    restart: unless-stopped
 
   poller:
     image: reminder-bot
@@ -46,6 +50,7 @@ services:
     depends_on:
       init:
         condition: service_completed_successfully
+    restart: unless-stopped
 
 volumes:
   pgdata:
