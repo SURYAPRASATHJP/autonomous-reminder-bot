@@ -58,8 +58,8 @@ def deliver(conn, row):
 VALUES (%s, %s, %s, %s)
 ON CONFLICT (reminder_id, run_at) DO NOTHING
 """
-    cur.execute(query, (row["id"], row["user_id"], row["title"], row["next_run_at"]))
-    conn.commit()
+        cur.execute(query, (row["id"], row["user_id"], row["title"], row["next_run_at"]))
+        conn.commit()
 
 
 def mark_sent(conn, row_id):
