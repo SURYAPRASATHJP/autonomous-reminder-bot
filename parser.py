@@ -58,7 +58,7 @@ TOOLS = [
                 "title":{"type": "string","description": "title of what the reminder is about"},
                 "remind_at":{"type": "string","description": "reminder time as local ISO format YYYY-MM-DDTHH:MM:SS with no timezone mentioned"},
                 "recurring_type":{"type": "string","enum":["NA", "daily", "days"],"description": "how the reminder should be repeated, NA for non repeating reminders"}, # weekly and monthly later
-                "recurring_days":{"type": "string","description": "use this only when recurring type id days, replky with mon,wed,thur"},
+                "recurring_days":{"type": "string","description": "use this only when recurring type id days, replky with mon,wed,thu"},
                 "end_date":{"type": "string","description": "use this only when recurring type reminders, reply with the end date of the reminder as local ISO format"}
             },
             "required": ["title", "remind_at"]
