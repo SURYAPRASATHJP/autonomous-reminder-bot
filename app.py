@@ -17,7 +17,7 @@ if "sidebar_notifications" not in st.session_state:
 
 @st.fragment(run_every="5s")
 def check_notifications():
-    # every 5 seconds it picks up reminders the poller delivered, show them in the chat
+    # every 5 seconds it picks up reminders the poller delivered, 
     result = get_unseen_notifications(USER_ID)
 
     # errors quietly on screen if the DB call fails so no flow gets affected

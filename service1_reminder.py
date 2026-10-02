@@ -38,6 +38,10 @@ def create_reminder(user_id, user_request, title, remind_at, recurring_type="NA"
         except Exception:
             return {"ok": False, "error": "end_date is not a valid date and time"}
 
+    if recurring_type == "days" and not recurring_days:
+
+        return {"ok": False, "error": "recurring_days is required when recurring_type is days, for example mon,wed,thu"}
+
     is_recurring = recurring_type != "NA"
 
     conn= None
@@ -73,7 +77,7 @@ def list_reminders(user_id):
         cur= conn.cursor()
 
         query= '''
-        SELECT id, title, user_request, next_run_at, timezone, is_recurring, recurring_type, recurring_days, end_date FROM reminders WHERE user_id= %s AND status= 'pending' ORDER BY next_run_at LIMIT 20
+        SELECT id, title, user_request, next_run_at, timezone, is_recurring, recurring_type, recurring_days, end_date, times_sent FROM reminders WHERE user_id= %s AND status= 'pending' ORDER BY next_run_at LIMIT 20
         '''
 
         cur.execute(query, (user_id,))
@@ -89,7 +93,8 @@ def list_reminders(user_id):
                 "is_recurring": row[5],
                 "recurring_type": row[6],
                 "recurring_days": row[7],
-                "end_date": utc_to_local_str(row[8], row[4])
+                "end_date": utc_to_local_str(row[8], row[4]),
+                "times_sent": row[9]
             }
             reminders.append(reminder)
 

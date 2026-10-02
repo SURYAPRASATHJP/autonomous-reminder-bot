@@ -3,6 +3,8 @@ import logging
 import threading
 import time
 import signal
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from postgres_db import get_db_connection
 
@@ -15,6 +17,7 @@ LEASE_SECONDS = 600
 MAX_ATTEMPTS = 3
 IDLE_SLEEP = 0.5
 ERROR_SLEEP = 1.0
+WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 
 def claim_batch(conn, n, lease_seconds):
@@ -30,12 +33,12 @@ def claim_batch(conn, n, lease_seconds):
                 SELECT id FROM reminders
                 WHERE status = 'pending'
                   AND next_run_at <= NOW()
-                  AND is_recurring = FALSE
                 ORDER BY next_run_at ASC
                 LIMIT %s
                 FOR UPDATE SKIP LOCKED
             )
-            RETURNING id, title, user_request, attempts, user_id;
+            RETURNING id, title, user_request, attempts, user_id,
+          next_run_at, timezone, is_recurring, recurring_type, recurring_days, end_date;
         """
         cur.execute(query, (lease_seconds, n))
         rows = cur.fetchall()
@@ -51,11 +54,11 @@ def deliver(conn, row):
     # deliver to the notification table
     with conn.cursor() as cur:
         query = """
-            INSERT INTO notifications (reminder_id, user_id, message)
-            VALUES (%s, %s, %s)
-            ON CONFLICT (reminder_id) DO NOTHING
-        """
-        cur.execute(query, (row["id"], row["user_id"], row["title"]))
+            INSERT INTO notifications (reminder_id, user_id, message, run_at)
+VALUES (%s, %s, %s, %s)
+ON CONFLICT (reminder_id, run_at) DO NOTHING
+"""
+    cur.execute(query, (row["id"], row["user_id"], row["title"], row["next_run_at"]))
     conn.commit()
 
 
@@ -67,6 +70,7 @@ def mark_sent(conn, row_id):
           UPDATE reminders
             SET status = 'sent',
                 last_sent = NOW(),
+                times_sent = times_sent + 1,
                 locked_until = NULL,
                 updated_at = NOW()
             WHERE id = %s AND status = 'claimed'
@@ -76,6 +80,85 @@ def mark_sent(conn, row_id):
     conn.commit()
     return changed
 
+WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+def next_occurrence(current_run, recurring_type, recurring_days, tz_name, now=None):
+    # calculate the next occurrence 
+    now = now or datetime.now(timezone.utc)
+
+    if recurring_type not in ("daily", "days"):
+        raise ValueError(f"unsupported recurring_type: {recurring_type}")
+
+    allowed = {d.strip()[:3].lower() for d in (recurring_days or "").split(",") if d.strip()}
+
+
+    if recurring_type == "days" and not allowed:
+        raise ValueError("recurring_days is empty")
+
+    # do the date math in the reminder's own timezone so 9:00 stays 9:00 across daylight saving
+    local = current_run.astimezone(ZoneInfo(tz_name))
+
+    for _ in range(3700):
+        local = local + timedelta(days=1)
+
+        if recurring_type == "days" and WEEKDAYS[local.weekday()] not in allowed:
+            continue
+
+        candidate = local.astimezone(timezone.utc)
+
+
+        if candidate > now:
+            return candidate
+
+    raise ValueError("no next occurrence found")
+
+
+def reschedule(conn, row):
+    # for the next occurrence of a recurring reminder
+
+    try:
+        next_run = next_occurrence(row["next_run_at"], row["recurring_type"], row["recurring_days"], row["timezone"])
+
+    except ValueError as e:
+        # bad schedule data so stop sending the reminders instead of leaving the row claimed
+        logger.error(f"reminder {row['id']} cannot be rescheduled: {e}")
+
+        with conn.cursor() as cur:
+            cur.execute("UPDATE reminders SET status = 'failed', locked_until = NULL, updated_at = NOW() "
+                        "WHERE id = %s AND status = 'claimed'", (row["id"],))
+            changed = cur.rowcount > 0
+        conn.commit()
+        return changed
+
+    series_over = row["end_date"] is not None and next_run > row["end_date"]
+
+    with conn.cursor() as cur:
+        query = """
+            UPDATE reminders
+            SET status = %s,
+                next_run_at = %s,
+                last_sent = NOW(),
+                times_sent = times_sent + 1,
+                attempts = 0,
+                locked_until = NULL,
+                updated_at = NOW()
+            WHERE id = %s AND status = 'claimed'
+        """
+        cur.execute(query, ("sent" if series_over else "pending", next_run, row["id"]))
+        changed = cur.rowcount > 0
+    conn.commit()
+
+    return changed
+
+
+def finish_reminder(conn, row):
+    # reshedule a recurring reminder after the current notification or set to sent if finished
+
+    if row["is_recurring"]:
+        return reschedule(conn, row)
+
+    return mark_sent(conn, row["id"])
 
 def release_or_fail(conn, row_id):
     # set as failed if max attempts or back to pending if less.
@@ -126,8 +209,8 @@ def process_row(conn, row, deliver_fn):
     # mark it sent and this fails the message was already delivered, 
     # so leave the row claimed (do not release it, that would send it again after the lease expires so a another worker takes it and delivers it again).
     try:
-        if not mark_sent(conn, row["id"]):
-            logger.warning(f"reminder {row['id']} delivered but could not be marked sent (no longer claimed).")
+        if not finish_reminder(conn, row):
+            logger.warning(f"reminder {row['id']} delivered but could not be marked sent (no longer claimed). reason recurring or error")
     except Exception as e:
         conn.rollback()
         logger.error(f"DB error while marking reminder {row['id']} sent: {e}. Row left claimed.")

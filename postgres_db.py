@@ -47,6 +47,8 @@ def create_tables():
         ALTER TABLE reminders ADD COLUMN IF NOT EXISTS attempts INT NOT NULL DEFAULT 0;
         ALTER TABLE reminders ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
 
+        ALTER TABLE reminders ADD COLUMN IF NOT EXISTS times_sent INT NOT NULL DEFAULT 0;
+
         ALTER TABLE reminders DROP CONSTRAINT IF EXISTS reminders_status_check;
         ALTER TABLE reminders ADD CONSTRAINT reminders_status_check CHECK (status IN ('pending', 'sent', 'cancelled', 'claimed', 'failed'));
 
