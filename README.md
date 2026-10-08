@@ -7,7 +7,7 @@ how it works:
 1. User in the streamlit chat sends "Remind me to call the dentist tomorrow at 9 am."
 2. LLM call, parses the message, and creates,lists,deletes,updates,cancels the reminders in Postgres.
 3. Claim due rows from Postgres.
-4. 3 workers in threads, deliver to the notification table.
+4. 3 workers, deliver to the notification table.
 5. The reminder is marked as sent.
 6. The streamlit checks for new notifications in the notification table and displays them in the sidebar.
 
